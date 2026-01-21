@@ -121,49 +121,40 @@ def secure_inference(inputs, model_data, encoded_params, he_context):
     final_output = decryptMatrix(A, he_context)
     return final_output
 
-# --- Startup ---
+# --- Initializer ---
 
-@app.on_event("startup")
-def startup_event():
+def ensure_initialized():
     global HE, MODELS
-    print("Initializing Homomorphic Encryption Context...")
-    HE = initialize_HE()
-    print("HE Initialized.")
-    
-    print("Loading Models...")
-    # Load Diabetes Model
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    try:
-        data_d = load_pickle_model(os.path.join(base_dir, "models/diabetes_model.pkl"))
-        params_d = prepare_server_parameters(data_d['parameters'], HE)
-        MODELS['diabetes'] = {
-            'meta': data_d,
-            'params': params_d
-        }
-        print("Diabetes Model Loaded.")
-    except Exception as e:
-        print(f"Failed to load Diabetes Model: {e}")
-
-    # Load Heart Model
-    try:
-        data_h = load_pickle_model(os.path.join(base_dir, "models/heart_model.pkl"))
-        params_h = prepare_server_parameters(data_h['parameters'], HE)
-        MODELS['heart'] = {
-            'meta': data_h,
-            'params': params_h
-        }
-        print("Heart Disease Model Loaded.")
-    except Exception as e:
-        print(f"Failed to load Heart Model: {e}")
+    if HE is None:
+        print("Initializing Homomorphic Encryption Context...")
+        HE = initialize_HE()
+        
+    if not MODELS:
+        print("Loading Models...")
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        # Diabetes
+        try:
+            data_d = load_pickle_model(os.path.join(base_dir, "models/diabetes_model.pkl"))
+            params_d = prepare_server_parameters(data_d['parameters'], HE)
+            MODELS['diabetes'] = {'meta': data_d, 'params': params_d}
+        except Exception as e: print(f"Diabetes load err: {e}")
+        # Heart
+        try:
+            data_h = load_pickle_model(os.path.join(base_dir, "models/heart_model.pkl"))
+            params_h = prepare_server_parameters(data_h['parameters'], HE)
+            MODELS['heart'] = {'meta': data_h, 'params': params_h}
+        except Exception as e: print(f"Heart load err: {e}")
 
 # --- Endpoints ---
 
 @app.get("/")
 def read_root():
+    ensure_initialized()
     return {"status": "PPML Server Running", "models_loaded": list(MODELS.keys())}
 
 @app.post("/predict/diabetes")
 def predict_diabetes(req: PredictionRequest):
+    ensure_initialized()
     if 'diabetes' not in MODELS:
         raise HTTPException(status_code=503, detail="Diabetes model not loaded")
     
@@ -187,6 +178,7 @@ def predict_diabetes(req: PredictionRequest):
 
 @app.post("/predict/heart")
 def predict_heart(req: PredictionRequest):
+    ensure_initialized()
     if 'heart' not in MODELS:
         raise HTTPException(status_code=503, detail="Heart model not loaded")
     
