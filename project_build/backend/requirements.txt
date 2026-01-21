@@ -3,3 +3,4 @@ uvicorn
 numpy
 hickle
 pydantic
+scikit-learn
