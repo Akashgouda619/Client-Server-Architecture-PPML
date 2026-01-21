@@ -25,6 +25,7 @@ app.add_middleware(
 # --- Global State ---
 HE = None
 MODELS = {}
+ERRORS = []
 
 class PredictionRequest(BaseModel):
     features: List[float]
@@ -124,33 +125,50 @@ def secure_inference(inputs, model_data, encoded_params, he_context):
 # --- Initializer ---
 
 def ensure_initialized():
-    global HE, MODELS
+    global HE, MODELS, ERRORS
     if HE is None:
-        print("Initializing Homomorphic Encryption Context...")
-        HE = initialize_HE()
+        try:
+            HE = initialize_HE()
+        except Exception as e:
+            ERRORS.append(f"HE Init Error: {str(e)}")
+            return
         
     if not MODELS:
-        print("Loading Models...")
         base_dir = os.path.dirname(os.path.abspath(__file__))
         # Diabetes
         try:
-            data_d = load_pickle_model(os.path.join(base_dir, "models/diabetes_model.pkl"))
-            params_d = prepare_server_parameters(data_d['parameters'], HE)
-            MODELS['diabetes'] = {'meta': data_d, 'params': params_d}
-        except Exception as e: print(f"Diabetes load err: {e}")
+            model_path = os.path.join(base_dir, "models/diabetes_model.pkl")
+            if not os.path.exists(model_path):
+                ERRORS.append(f"File not found: {model_path}")
+            else:
+                data_d = load_pickle_model(model_path)
+                params_d = prepare_server_parameters(data_d['parameters'], HE)
+                MODELS['diabetes'] = {'meta': data_d, 'params': params_d}
+        except Exception as e: 
+            ERRORS.append(f"Diabetes load err: {str(e)}")
+            
         # Heart
         try:
-            data_h = load_pickle_model(os.path.join(base_dir, "models/heart_model.pkl"))
-            params_h = prepare_server_parameters(data_h['parameters'], HE)
-            MODELS['heart'] = {'meta': data_h, 'params': params_h}
-        except Exception as e: print(f"Heart load err: {e}")
+            model_path = os.path.join(base_dir, "models/heart_model.pkl")
+            if not os.path.exists(model_path):
+                ERRORS.append(f"File not found: {model_path}")
+            else:
+                data_h = load_pickle_model(model_path)
+                params_h = prepare_server_parameters(data_h['parameters'], HE)
+                MODELS['heart'] = {'meta': data_h, 'params': params_h}
+        except Exception as e: 
+            ERRORS.append(f"Heart load err: {str(e)}")
 
 # --- Endpoints ---
 
 @app.get("/")
 def read_root():
     ensure_initialized()
-    return {"status": "PPML Server Running", "models_loaded": list(MODELS.keys())}
+    return {
+        "status": "PPML Server Running", 
+        "models_loaded": list(MODELS.keys()),
+        "errors": ERRORS
+    }
 
 @app.post("/predict/diabetes")
 def predict_diabetes(req: PredictionRequest):
