@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+numpy
+hickle
+# Pyfhel
+pydantic
+scikit-learn
+pandas
