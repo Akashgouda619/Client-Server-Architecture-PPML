@@ -69,6 +69,7 @@ export default function Home() {
     setLogs([]);
     setCiphertextPayload('');
 
+    let endpoint = "";
     try {
       // 1. Simulation: Encryption Step
       addLog("Initializing Client-Side HE Context (CKKS Scheme)...");
@@ -96,7 +97,7 @@ export default function Home() {
 
       // 2. Network Request
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const endpoint = mode === 'diabetes' ? `${apiBase}/predict/diabetes` : `${apiBase}/predict/heart`;
+      endpoint = mode === 'diabetes' ? `${apiBase}/predict/diabetes` : `${apiBase}/predict/heart`;
 
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -117,10 +118,10 @@ export default function Home() {
 
       addLog(`Decryption Success. Probability: ${(data.probability * 100).toFixed(2)}%`);
 
-    } catch (e) {
-      console.error(e);
-      addLog("ERROR: Connection Failed.");
-      alert("Failed to connect to backend. Make sure it's running on port 8000.");
+    } catch (e: any) {
+      console.error("Connection Error:", e);
+      addLog(`ERROR: Connection Failed to ${endpoint}`);
+      alert(`Failed to connect to backend at ${endpoint}. Please ensure the NEXT_PUBLIC_API_URL environment variable is set correctly in Vercel and the backend is running.`);
     } finally {
       setLoading(false);
     }
