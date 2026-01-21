@@ -6,7 +6,6 @@ import pickle
 import numpy as np
 import os
 import sys
-from sklearn.preprocessing import StandardScaler
 
 # Import local encryption module (ensure it's in path)
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -35,6 +34,16 @@ class PredictionRequest(BaseModel):
 def load_pickle_model(path):
     with open(path, 'rb') as f:
         data = pickle.load(f)
+    
+    # If the scaler exists and is a scikit-learn object, extract mean/scale
+    # This allows us to run inference without scikit-learn installed
+    if 'scaler' in data:
+        scaler_obj = data['scaler']
+        if hasattr(scaler_obj, 'mean_'):
+            data['scaler'] = {
+                'mean': scaler_obj.mean_,
+                'scale': scaler_obj.scale_
+            }
     return data
 
 def prepare_server_parameters(parameters, he_context):
@@ -63,13 +72,13 @@ def secure_inference(inputs, model_data, encoded_params, he_context):
     he_context: Shared context (in real world, public key)
     """
     # 1. Client: Preprocess & Encrypt Inputs
-    # Scale inputs using the saved scaler
     if 'scaler' in model_data:
-        # scaler expectation: 2D array (samples, features)
-        # inputs is a list of features
-        X_raw = np.array(inputs).reshape(1, -1)
-        X_scaled = model_data['scaler'].transform(X_raw)
-        X = X_scaled.reshape(-1, 1) # Reshape for matrix mult (features, 1)
+        # Manual scaling to avoid sklearn dependency
+        # scaler is expected to be a dict with 'mean' and 'scale'
+        scaler = model_data['scaler']
+        X_raw = np.array(inputs)
+        X_scaled = (X_raw - scaler['mean']) / scaler['scale']
+        X = X_scaled.reshape(-1, 1)
     else:
         X = np.array(inputs).reshape(-1, 1)
         
